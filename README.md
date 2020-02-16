@@ -56,10 +56,10 @@ Containers:
     State:          Running
       Started:      Tue, 11 Feb 2020 23:50:50 +0000
 ```
-The alternative would be to try and use a priviledged dind (docker in docker) container, to temporarily host a docker daemon in a pod, then use this DockerD to:
+### B. The alternative would be to try and use a priviledged dind (docker in docker) container, to temporarily host a docker daemon in a pod, then use this DockerD to:
 
-A. Spin up the UI container+VNC combination through Docker, but scheduled on the k8s worker node through k8s.
-B. Use the `docker commit` command when the user is ready to finalize their customization.
+* Spin up the UI container+VNC combination through Docker, but scheduled on the k8s worker node through k8s.
+* Use the `docker commit` command when the user is ready to finalize their customization.
 
 This second option seems even worse and hackier than the first, and depends on more "stuff". 
 Both would lead to the needed customized image being tagged and saved to a registry of our choosing.
