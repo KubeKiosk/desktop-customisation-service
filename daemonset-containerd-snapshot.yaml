@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: containerd-snapshot-agent
+  namespace: default
+spec:
+  selector:
+    matchLabels:
+        name: containerd-snapshot-agent
+  template:
+    metadata:
+      labels:
+        name: containerd-snapshot-agent
+    spec:
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        effect: NoSchedule
+      containers:
+      - name: containerd-snapshot-agent
+        image: metahertz/test-containerd:1
+        securityContext:
+            privileged: true
+        volumeMounts:
+        - name: runk3s
+          mountPath: /run/k3s
+          readOnly: false
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - name: runk3s
+        hostPath:
+          path: /run/k3s
+      restartPolicy: Always
+      hostNetwork: true
