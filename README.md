@@ -1,69 +1,55 @@
 # desktop-customisation-service
 Self service image customisation for creation of pre-populated "desktop" environments, ideal for workshops, technical seminars where a tested, specific set of tools will need to be installed/consumed.
 
-# Initial Roadmap
-Two options for people to self-service their own 'desktops' to be consumable in a KubeKiosk environment.
+# Contents
+## /containerd-snapshot-service
+Contains a PoC agent to be run as a Daemonset on K8s worker nodes. 
+The service exposes a HTTP GET endpoint to list the ContainerD containers on the node (by default in the CNI "k8s.io" ContainerD namespace), and then a POST endpoint to trigger a ContainerD checkpoint of a running container (given it's UUID) to a new image path (Given a fully qualified registry/user/imagename:version string) and upload the new image to the registry.
 
-## 1 Allow automated submission of Dockerfile 
-Simple submission of Dockerfile, based on our tested images with `FROM`, CI/CD build. Expose via VNC allowing pre-onsite 'staging'.
+This functionality isn't exposed through CNI or Kubernetes, the idea is this agent can be used to automate the 'snapshotting' of changes to a desktop image our users may make on a VNC-exposed pod, whithout needing to build a Dockerfile for the new image, reducing the complexity to build workshop/kiosk custom images for a number of our speakers.
 
-## 2 Allow for "Edit and Snapshot" live environment via VNC.
-Dynamically provide an instance of the base desktop Image, with a VNC/NoVNC sidecar, expose the HTTP UI of the noVNC connection via ingress to the user. 
+There is a sample daemonset yaml for kubernetes for deploying the agent, it's currently unauthenticated and listens on the node's IP (host networking) on TCP 8080. 
+In the daemonset yaml you'll see an ENV variable for passing your dockerhub/registry credentials through to the service, from a secret/env etc.
 
-Allow the user to edit the environment by running commands, installing software etc, then provide a way (API+UI) of signalling they are finished. At this point, create a new image of the containers state, and save as their new "desktop" environment image. Allowing users not familiar with Docker or container tooling to still benefit from environment customization.
+### Useage
+```
+GET http://worker-node:8080
 
+ContainerD Snapshotter Daemon v0.12
+```
+```
+GET http://worker-node:8080/containers
 
-# Techical Notes
-
-## Current issues with "2 - Edit and Snapshot".
-While `docker commit` is exactly the command we'd want here to snapshot the users' changes, this gets harder if we want this process running on Kubenetes (instead of custom orchestrating a node with docker on it for the self-servie image creation.)
-
-K3OS and Considerable others use ContainerD, via CRI, under the kubelet.
-While ContainerD does support a snpashot+image creation, which should suit our needs, these ContainerD API's arent surfaced through to k8s in the CRI spec.
-
-ContainerD Checkpointing: https://github.com/containerd/containerd#checkpoint-and-restore
-Kubernetes CRI Spec: https://github.com/kubernetes/cri-api/blob/master/pkg/apis/runtime/v1alpha2/api.proto
-
-Therefore, in order to do this, I see a couple of options, neither of which are very nice.
-
-### A. Agent on each K8S worker via daemonset to connect to ContainerD socket.
-Within a POD describe output, we do get the ContainerD UUID of a given container, and the node it's on. 
-We should be able to use this to send a request to a simple API running on our agent, on the specific worker (exposed via a nodeport), to call the ContainerD checkpointing API's via the go client.
+ContainerID: 0968e1808e5bb6360fa6533cd5f343feaa262be244ad432991086f06d4b6e05a. 
+ContainerID: 1309cafc19397d7deafe4593ee823d5eda6ca9d9b7981b95f85f9efe089d57f1. 
+ContainerID: 370b9fcc085d39cf88a05624b9f1d5f9db45c90c2ba97642e2018365fa0a17bc. 
+ContainerID: 38de077d07d0f31da97b619ce66e09b851ddacccf25850ae21127e55a0abb46a. 
+ContainerID: 488a6d4b4d25a8661650132e571d9bb62537131b5e43e09a51ac5d60cada743b. 
+ContainerID: 4d0494e34ffaebea96762d4fa6ea0e7518fd163605faadb208afc58cbf34d595. 
+ContainerID: 61687e7a7139188c7ffe91924c90578ab5d4c699ac92faf089f6712251b7fb00. 
+ContainerID: 6757872c32e162013542c48e30b94d81f44fe1a3b87f1fd95d41d2df7b279d21. 
+ContainerID: 738cd16172f7e6b6d5524a142d0234a6098142d9add317665943a64c6d332b34. 
+ContainerID: 7946abbb63fc810fe466de36ad02a6439b0f4084f7f50f7015b5f1411db6238f. 
+ContainerID: b389c4c801cc8462daa13a51d50a165935fec31e3f61670182f42b979b9bddcf. 
+ContainerID: f4ef6308e5651d7412104e8c00e3e2c1dc8aa589a4036860964f901a686a47c2. 
+```
 
 ```
-k3os-24912 [~]$ kubectl describe po desktop-daemonset-j5hp8
-Name:         desktop-daemonset-j5hp8
-Namespace:    default
-Priority:     0
-Node:         k3os-24912/172.17.0.13
-Start Time:   Tue, 11 Feb 2020 23:50:50 +0000
-Labels:       controller-revision-hash=68d87d4d9
-              name=desktop-kiosk
-              pod-template-generation=1
-Annotations:  <none>
-Status:       Running
-IP:           172.17.0.13
-IPs:
-  IP:           172.17.0.13
-Controlled By:  DaemonSet/desktop-daemonset
-Containers:
-  desktop-kiosk:
-    Container ID:   containerd://ac04ea8cc9a611f7a43342a4e7fbdf4f7cd486f55123c9947bcbe2d7da8608c5
-    Image:          metahertz/kiosk-demo:v0.1
-    Image ID:       docker.io/metahertz/kiosk-demo@sha256:71149efc607a453201ab01ac2a0970155ded2ea3e679d0faa4d713dab5bbecd9
-    Port:           <none>
-    Host Port:      <none>
-    State:          Running
-      Started:      Tue, 11 Feb 2020 23:50:50 +0000
+POST http://worker-node:8080/snapshot?containerid=UUID-from-kubectl-describe-po-xyz&imagetag=registry.hub.docker.com/your/destination-container:version
+
+Received snapshot request for ContainerID: 738cd16172f7e6b6d5524a142d0234a6098142d9add317665943a64c6d332b34 
+To destination: registry.hub.docker.com/blah/test-snapshot:v1 
+ContainerID: 738cd16172f7e6b6d5524a142d0234a6098142d9add317665943a64c6d332b34 Found! Attempting Checkpoint...
 ```
-### B. The alternative would be to try and use a priviledged dind (docker in docker) container, to temporarily host a docker daemon in a pod, then use this DockerD to:
 
-* Spin up the UI container+VNC combination through Docker, but scheduled on the k8s worker node through k8s.
-* Use the `docker commit` command when the user is ready to finalize their customization.
+### To Build
+```
+cd ./containerd-snapshot-service
+docker build .
+```
 
-This second option seems even worse and hackier than the first, and depends on more "stuff". 
-Both would lead to the needed customized image being tagged and saved to a registry of our choosing.
-
-I've also asked on the dockercommunity>containerd and kubernetes>general slack for pointers on where to ask, maybe i'm missing some advanced parameter passing in CRI, but i doubt it, based on this closed K8s issue asking for `docker commit` functionality: 
-
-https://github.com/kubernetes/kubernetes/issues/80818
+### directory contents
+`ca-certificates.crt` - Needed in the container for the ctr binary to connect to public registries over HTTPS
+`daemonset-containerd-snapshot.yaml` - Example DaemonSet deployment with ENV
+`Dockerfile` - Compile and build the agent container
+`main.go` - Very hacky POC snapshot agent. Currently calls out to `ctr` binary for the snapshot and push, as the ContainerD documentation leaves a lot to be desired.

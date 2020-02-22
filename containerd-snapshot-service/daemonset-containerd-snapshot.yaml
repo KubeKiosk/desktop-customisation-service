@@ -17,6 +17,10 @@ spec:
         effect: NoSchedule
       containers:
       - name: containerd-snapshot-agent
+        env:
+        - name: X_REGISTRY_CREDS
+          value: dockerhub_user:dockerhub_pass
+        image: metahertz/containerd-snapshot-agent:poc1
         image: metahertz/test-containerd:1
         securityContext:
             privileged: true
