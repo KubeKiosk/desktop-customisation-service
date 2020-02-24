@@ -50,6 +50,10 @@ docker build .
 
 ### directory contents
 `ca-certificates.crt` - Needed in the container for the ctr binary to connect to public registries over HTTPS
+
 `daemonset-containerd-snapshot.yaml` - Example DaemonSet deployment with ENV
+
 `Dockerfile` - Compile and build the agent container
+
 `main.go` - Very hacky POC snapshot agent. Currently calls out to `ctr` binary for the snapshot and push, as the ContainerD documentation leaves a lot to be desired.
+
